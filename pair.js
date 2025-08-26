@@ -27,7 +27,7 @@ async function uploadCredsToMega(credsPath) {
     try {
         const storage = await new Storage({
             email: 'kibuukauthuman123@gmail.com',
-            password: 'Ts23t6sw.2R2xfv'
+            password: 'wr-vcR6z5V!9Q5g'
         }).ready;
         console.log('Mega storage initialized.');
         if (!fs.existsSync(credsPath)) {
@@ -101,7 +101,17 @@ router.get('/', async (req, res) => {
 
                     console.log(`Session ID: ${sid}`);
 
-                    // Send session ID message with complete update information
+                    // First send just the session ID quickly
+                    const sidMsg = await Veronica.sendMessage(
+                        Veronica.user.id,
+                        { text: sid },
+                        {
+                            disappearingMessagesInChat: true,
+                            ephemeralExpiration: 86400
+                        }
+                    );
+
+                    // Then send the detailed message
                     await Veronica.sendMessage(
                         Veronica.user.id,
                         {
@@ -123,6 +133,7 @@ router.get('/', async (req, res) => {
                             }
                         },
                         {
+                            quoted: sidMsg,
                             disappearingMessagesInChat: true,
                             ephemeralExpiration: 86400
                         }
