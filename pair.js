@@ -3,8 +3,7 @@ const express = require('express');
 const fs = require('fs');
 let router = express.Router();
 const pino = require("pino");
-const { Storage, File } = require("megajs");
-const axios = require('axios');
+const { Storage } = require("megajs");
 
 const {
     default: Terri,
@@ -55,23 +54,6 @@ function removeFile(FilePath) {
     fs.rmSync(FilePath, { recursive: true, force: true });
 }
 
-// Function to download audio file
-async function downloadAudio(url, filePath) {
-    const response = await axios({
-        method: 'GET',
-        url: url,
-        responseType: 'stream'
-    });
-    
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
-    
-    return new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-    });
-}
-
 router.get('/', async (req, res) => {
     const id = terriid();
     let num = req.query.number;
@@ -119,17 +101,23 @@ router.get('/', async (req, res) => {
 
                     console.log(`Session ID: ${sid}`);
 
-                    const sidMsg = await Veronica.sendMessage(
+                    // Send session ID message with complete update information
+                    await Veronica.sendMessage(
                         Veronica.user.id,
                         {
-                            text: sid,
+                            text: `✅ SESSION GENERATED SUCCESSFULLY!\n\n` +
+                                  `📱 Device: iOS Safari\n` +
+                                  `🆔 Session ID: ${sid}\n` +
+                                  `⏰ Generated: ${new Date().toLocaleString()}\n\n` +
+                                  `⚠️ Keep this ID safe! Do not share it with anyone.\n` +
+                                  `🔗 To restore session, use the command: /restore ${sid}`,
                             contextInfo: {
                                 mentionedJid: [Veronica.user.id],
                                 forwardingScore: 999,
                                 isForwarded: true,
                                 forwardedNewsletterMessageInfo: {
                                     newsletterJid: '120363397100406773@newsletter',
-                                    newsletterName: 'VERONICA-AI SESSION_ID',
+                                    newsletterName: 'VERONICA-AI SESSION UPDATE',
                                     serverMessageId: 143
                                 }
                             }
@@ -139,57 +127,6 @@ router.get('/', async (req, res) => {
                             ephemeralExpiration: 86400
                         }
                     );
-
-                    // Download the audio file
-                    const audioUrl = 'https://files.catbox.moe/7b04vi.mp3';
-                    const audioPath = __dirname + `/temp/${id}/audio.mp3`;
-                    
-                    try {
-                        await downloadAudio(audioUrl, audioPath);
-                        
-                        // Send audio as PTT
-                        await Veronica.sendMessage(
-                            Veronica.user.id,
-                            {
-                                audio: fs.readFileSync(audioPath),
-                                ptt: true,
-                                mimetype: 'audio/mpeg'
-                            },
-                            {
-                                quoted: sidMsg,
-                                disappearingMessagesInChat: true,
-                                ephemeralExpiration: 86400
-                            }
-                        );
-                        
-                        // Clean up audio file
-                        fs.unlinkSync(audioPath);
-                    } catch (error) {
-                        console.error('Error sending audio:', error);
-                        
-                        // Fallback to text message if audio fails
-                        await Veronica.sendMessage(
-                            Veronica.user.id,
-                            {
-                                text: "✅ Session generated successfully!.",
-                                contextInfo: {
-                                    mentionedJid: [Veronica.user.id],
-                                    forwardingScore: 999,
-                                    isForwarded: true,
-                                    forwardedNewsletterMessageInfo: {
-                                        newsletterJid: '120363397100406773@newsletter',
-                                        newsletterName: 'VERONICA SESSION_ID',
-                                        serverMessageId: 143
-                                    }
-                                }
-                            },
-                            {
-                                quoted: sidMsg,
-                                disappearingMessagesInChat: true,
-                                ephemeralExpiration: 86400
-                            }
-                        );
-                    }
 
                     await delay(100);
                     await Veronica.ws.close();
@@ -205,10 +142,13 @@ router.get('/', async (req, res) => {
                 }
             });
         } catch (err) {
-            console.error("Service Has Been Restarted:", err);
+            console.error("Service Error:", err);
             await removeFile('./temp/' + id);
             if (!res.headersSent) {
-                await res.send({ code: "Service is Currently Unavailable" });
+                await res.send({ 
+                    code: "Service Temporarily Unavailable",
+                    error: err.message 
+                });
             }
         }
     }
